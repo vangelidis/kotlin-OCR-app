@@ -18,6 +18,9 @@ interface EntryDao {
     @Query("SELECT * FROM entries")
     suspend fun getAllEntries(): List<Entry>
 
+    @Query("SELECT * FROM entries WHERE text = :text LIMIT 1")
+    suspend fun findEntryByText(text: String): Entry?
+
     @Insert
     suspend fun insertEntry(entry: Entry)
 }

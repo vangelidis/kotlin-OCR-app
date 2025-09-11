@@ -52,7 +52,7 @@ fun correctTextWithGeminiAI(apiKey: String, text: String, callback: (String) -> 
         override fun onResponse(call: Call, response: Response) {
             val responseBody = response.body?.string()
             if (responseBody != null) {
-                Log.d("Explain", "onResponse | API response: $responseBody")
+                //Log.d("Explain", "onResponse | API response: $responseBody")
                 try {
                     val geminiAIResponseResult = gson.fromJson(responseBody, GeminiAIResponseResult::class.java)
                     val correctedText = geminiAIResponseResult.candidates
@@ -87,8 +87,9 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
         )
     ).toRequestBody("application/json".toMediaTypeOrNull())
 
-    Log.d("Explain", "isTextAIncludedInTextB | remove log temporarily")
-    //Log.d("Explain", "Check if the following text: '$textA' is included in or is similar to this text: '$textB'. Respond with 'true' or 'false' only. Take into account that the texts were extracted with OCR and may contain random characters. Absolutely no explanation or additional texts.")
+    logLongText("Explain", "TextA", textA)
+    logLongText("Explain", "TextB", textB)
+
     val request = Request.Builder()
         .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
         .post(requestBody)
@@ -116,4 +117,14 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
             }
         }
     })
+}
+
+fun logLongText(tag: String, label: String, text: String) {
+    val maxLogSize = 4000
+    val message = "$label: $text"
+    for (i in 0..message.length / maxLogSize) {
+        val start = i * maxLogSize
+        val end = (start + maxLogSize).coerceAtMost(message.length)
+        Log.d(tag, message.substring(start, end))
+    }
 }

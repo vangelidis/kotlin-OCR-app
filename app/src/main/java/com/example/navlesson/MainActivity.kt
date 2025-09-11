@@ -43,6 +43,35 @@ fun MyApp() {
         }
         composable("firstscreen") {
             FirstScreen { name, age ->
+                // Handle navigation or action if needed
+            }
+        }
+        composable("adminscreen") {
+            AdminScreenContent(
+                onAddNewEntryClick = {
+                    // Handle navigation or action for "Add New Entry"
+                },
+                onListEntriesClick = {
+                    // Handle navigation or action for "List Entries"
+                }
+            )
+        }
+    }
+}
+
+/*
+@Composable
+fun MyApp() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "startmenu") {
+        composable("startmenu") {
+            StartMenuScreen(
+                onUserClick = { navController.navigate("firstscreen") },
+                onAdminClick = { navController.navigate("adminscreen") }
+            )
+        }
+        composable("firstscreen") {
+            FirstScreen { name, age ->
                 navController.navigate("secondscreen/$name/$age")
             }
         }
@@ -72,3 +101,4 @@ fun MyApp() {
 }
 
 
+*/

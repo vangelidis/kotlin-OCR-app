@@ -1,5 +1,5 @@
 package com.example.navlesson
-
+/*
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -62,3 +62,5 @@ fun ThirdScreen(navigationToFirstScreen:()->Unit) {
 
     }
 }
+
+*/

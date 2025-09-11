@@ -98,7 +98,7 @@ fun AddEntryScreen(context: Context) {
                         coroutineScope.launch {
                             extractedText = coroutineScope.launch {
                                 bitmap?.let { capturedBitmap ->
-                                    performOCR(capturedBitmap, context, languages, Constants.API_KEY, lifecycleOwner) { correctedText ->
+                                    performOCR(capturedBitmap, context, languages) { correctedText ->
                                         Log.d("Explain", "AddEntry - correctedText: $correctedText")
                                         correctTextWithGeminiAI(
                                             apiKey = Constants.API_KEY,
@@ -108,8 +108,6 @@ fun AddEntryScreen(context: Context) {
                                             // Update the extracted text with the corrected text
                                             extractedText = correctedText
                                         }
-
-                                        //extractedText = correctedText
                                     }
                                 }
                             }.toString()

@@ -1,5 +1,6 @@
-package com.example.navlesson
 
+package com.example.navlesson
+/*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,3 +35,4 @@ fun SecondScreen(name: String, age:Int, navigationToThirdScreen: () -> Unit) {
 
     }
 }
+*/

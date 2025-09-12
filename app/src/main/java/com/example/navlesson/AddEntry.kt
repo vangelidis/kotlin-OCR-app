@@ -257,43 +257,4 @@ fun saveBitmapToCache(context: Context, bitmap: Bitmap): Uri {
     return Uri.fromFile(file)
 }
 
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-fun RequestCameraPermission(onPermissionGranted: () -> Unit) {
-    val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
 
-    LaunchedEffect(Unit) {
-        cameraPermissionState.launchPermissionRequest()
-    }
-
-    if (cameraPermissionState.status.isGranted) {
-        onPermissionGranted()
-    } else {
-        Text("Camera permission is required to use this feature.")
-    }
-}
-
-
-suspend fun addEntryToDatabase(context: Context, text: String, link: String, type: String) {
-    val db = AppDatabase.getDatabase(context)
-    val newEntry = Entry(text = text, link = link, type = type)
-    withContext(Dispatchers.IO) {
-        db.entryDao().insertEntry(newEntry)
-    }
-
-    @OptIn(ExperimentalPermissionsApi::class)
-    @Composable
-    fun RequestCameraPermission(onPermissionGranted: @Composable () -> Unit) {
-        val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
-
-        LaunchedEffect(Unit) {
-            cameraPermissionState.launchPermissionRequest()
-        }
-
-        if (cameraPermissionState.status.isGranted) {
-            onPermissionGranted()
-        } else {
-            Text("Camera permission is required to use this feature.")
-        }
-    }
-}

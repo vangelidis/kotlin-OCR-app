@@ -12,6 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import android.util.Log
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 
 class ListEntries : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,8 +29,7 @@ class ListEntries : ComponentActivity() {
     }
 }
 
-
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListEntriesScreen() {
     val context = LocalContext.current
@@ -37,33 +43,58 @@ fun ListEntriesScreen() {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Database Entries",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("List of Entries") },
+            )
+        }
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(entries) { entry ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(4.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    elevation = CardDefaults.cardElevation(4.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(text = "Text: ${entry.text}", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Text: \n ${entry.text}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "Link: ${entry.link}", style = MaterialTheme.typography.bodyMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Link Icon")
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val uriHandler = LocalUriHandler.current
+                            ClickableText(
+                                text = AnnotatedString("Link: ${entry.link}"),
+                                style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.primary),
+                                onClick = {
+                                    uriHandler.openUri(entry.link)
+                                }
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "Type: ${entry.type}", style = MaterialTheme.typography.bodySmall) // Display type
+                        Text(
+                            text = "Type: ${entry.type}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = when (entry.type.lowercase()) {
+                                "text" -> MaterialTheme.colorScheme.primary
+                                "image" -> MaterialTheme.colorScheme.secondary
+                                "video" -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
                     }
                 }
             }

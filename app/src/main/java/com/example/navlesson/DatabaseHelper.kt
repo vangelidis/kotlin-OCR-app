@@ -49,9 +49,9 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
-suspend fun addEntryToDatabase(context: Context, text: String, link: String) {
+suspend fun addEntryToDatabase(context: Context, text: String, link: String, type: String) {
     val db = AppDatabase.getDatabase(context)
-    val newEntry = Entry(text = text, link = link, type = "text") // Default type
+    val newEntry = Entry(text = text, link = link, type = type)
     withContext(Dispatchers.IO) {
         db.entryDao().insertEntry(newEntry)
     }

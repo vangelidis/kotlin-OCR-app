@@ -13,9 +13,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.navlesson.ui.theme.NavLessonTheme
 import com.example.navlesson.composable.StartMenuScreen
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,18 +43,10 @@ fun MyApp() {
             )
         }
         composable("firstscreen") {
-            FirstScreen { name, age ->
-                // Handle navigation or action if needed
-            }
+            FirstScreen()
         }
         composable("adminscreen") {
             AdminScreenContent(
-                onAddNewEntryClick = {
-                    // Handle navigation or action for "Add New Entry"
-                },
-                onListEntriesClick = {
-                    // Handle navigation or action for "List Entries"
-                }
             )
         }
     }

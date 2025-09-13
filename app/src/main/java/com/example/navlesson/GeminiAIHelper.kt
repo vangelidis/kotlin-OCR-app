@@ -28,14 +28,12 @@ data class Part(
 fun correctTextWithGeminiAI(apiKey: String, text: String, callback: (String) -> Unit) {
     val client = OkHttpClient()
     val gson = Gson()
-    val requestBody = RequestBody.create(
-        "application/json".toMediaTypeOrNull(),
-        gson.toJson(mapOf(
-            "contents" to listOf(
-                mapOf("parts" to listOf(mapOf("text" to "The text was retrieved with OCR. Contains wrong on random characters. Correct the text and return only the corrected text. Absolutely no explanation or additional texts: $text")))
-            )
-        ))
-    )
+    val requestBody = gson.toJson(mapOf(
+        "contents" to listOf(
+            mapOf("parts" to listOf(mapOf("text" to "The text was retrieved with OCR. Contains wrong on random characters. Correct the text and return only the corrected text. Absolutely no explanation or additional texts: $text")))
+        )
+    ))
+        .toRequestBody("application/json".toMediaTypeOrNull())
     val request = Request.Builder()
         .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
         .post(requestBody)
@@ -46,7 +44,7 @@ fun correctTextWithGeminiAI(apiKey: String, text: String, callback: (String) -> 
         override fun onFailure(call: Call, e: IOException) {
             Log.e("Explain", "onFailure | API request failed", e) // Log the failure
             e.printStackTrace()
-            callback("Gemini AI correction failed") // Return the original text in case of failure
+            callback("Gemini AI correction failed")
         }
 
         override fun onResponse(call: Call, response: Response) {
@@ -76,14 +74,12 @@ fun correctTextWithGeminiAI(apiKey: String, text: String, callback: (String) -> 
 }
 
 fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callback: (Boolean) -> Unit) {
-    val counter = 0
     val client = OkHttpClient()
     val gson = Gson()
     val requestBody = gson.toJson(
         mapOf(
             "contents" to listOf(
                 mapOf("parts" to listOf(mapOf("text" to "Check if the following text: '$textA' is included in or is the same with this text: '$textB'. Respond with 'true' or 'false' only. Take into account that the texts were extracted with OCR and may contain random characters. Absolutely no explanation or additional texts.")))
-                //mapOf("parts" to listOf(mapOf("text" to "Respond only with 'true' or 'false'; assume OCR noise (~10%); return true if any: (1) $textA is approximately contained in $textB (~90%), (2) $textB is approximately contained in $textA (~90%), (3) $textA and $textB are approximately the same (~90%); otherwise false.")))
             )
         )
     ).toRequestBody("application/json".toMediaTypeOrNull())
@@ -91,14 +87,8 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
     logLongText("Explain", "TextA", textA)
     logLongText("Explain", "TextB", textB)
 
-    //val request = Request.Builder()
-     //   .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
-     //   .post(requestBody)
-     //   .addHeader("Content-Type", "application/json")
-     //   .build()
-
     val request = Request.Builder()
-        .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")
+        .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent") //Gemini AI endpoint
         .addHeader("x-goog-api-key", apiKey)
         .addHeader("Content-Type", "application/json")
         .post(requestBody)
@@ -108,7 +98,7 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
         override fun onFailure(call: Call, e: IOException) {
             e.printStackTrace()
             Log.e("Explain", "GeminiAIHelper Request failed", e)
-            callback(false) // Default to false on failure
+            callback(false)
         }
 
         override fun onResponse(call: Call, response: Response) {
@@ -116,11 +106,11 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
                 val geminiAIResponseResult = gson.fromJson(responseBody, GeminiAIResponseResult::class.java)
                 val resultText = geminiAIResponseResult.candidates
                     .firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim()?.toBoolean()
-                Log.d("Explain", "ResultResponse: $resultText") // Log the response
-                //Log.d("Explain", "Raw Response: $responseBody") // Log the raw response
-                callback(resultText ?: false) // Pass the result or default to false
+                Log.d("Explain", "ResultResponse: $resultText")
+                //Log.d("Explain", "Raw Response: $responseBody")
+                callback(resultText ?: false)
             } ?: run {
-                Log.d("Explain", "Response: false (callback)") // Log the default response
+                Log.d("Explain", "Response: false (callback)")
                 callback(false)
             }
         }

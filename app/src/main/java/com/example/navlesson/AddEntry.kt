@@ -40,7 +40,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.LifecycleOwner
 import com.yalantis.ucrop.UCrop
 import kotlinx.coroutines.launch
 import java.io.File
@@ -48,15 +47,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 import androidx.core.content.ContextCompat
 import android.annotation.SuppressLint
-import android.view.ViewGroup
 import androidx.exifinterface.media.ExifInterface
 import com.example.navlesson.composable.adjustContrast
 import com.example.navlesson.composable.convertToGrayscale
 import com.example.navlesson.composable.removeNoise
-
-/* ---------------------------------------------------------
-   Activity
---------------------------------------------------------- */
 
 class AddEntry : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +63,7 @@ class AddEntry : ComponentActivity() {
 }
 @Composable
 fun AddEntryScreen(context: Context) {
-    val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
+    LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -130,7 +124,7 @@ fun AddEntryScreen(context: Context) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Preview of the cropped image (if any)
+        // Preview of the cropped image
         item {
             bitmap?.let {
                 Image(
@@ -256,13 +250,6 @@ fun AddEntryScreen(context: Context) {
     }
 }
 
-/* ---------------------------------------------------------
-   CameraCapture composable
-   - Uses ImplementationMode.COMPATIBLE (TextureView) to avoid overlay issues.
-   - Binds after view is attached (post) and sets safe rotation.
-   - Rotates the returned Bitmap so callers don’t need previewView.
---------------------------------------------------------- */
-
 @SuppressLint("RestrictedApi")
 @Composable
 fun CameraCapture(
@@ -273,7 +260,6 @@ fun CameraCapture(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Compose-held references (no view lookups/casts)
     val imageCaptureRef = remember { mutableStateOf<ImageCapture?>(null) }
     val rotationDegreesRef = remember { mutableStateOf(0) }
 
@@ -291,7 +277,6 @@ fun CameraCapture(
         factory = { previewView }
     )
 
-    // Bind camera after view is attached to avoid rotation = -1
     DisposableEffect(lifecycleOwner) {
         val mainExecutor = ContextCompat.getMainExecutor(context)
         previewView.post {
@@ -328,7 +313,6 @@ fun CameraCapture(
                         imageCapture
                     )
 
-                    // Keep rotations in sync if layout/display changes
                     previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                         val rot = previewView.display?.rotation ?: Surface.ROTATION_0
                         rotationDegreesRef.value = when (rot) {
@@ -363,7 +347,6 @@ fun CameraCapture(
         }
     }
 
-    // Capture button overlay
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -428,25 +411,6 @@ fun CameraCapture(
     }
 }
 
-// Helper to find ImageCapture stored in PreviewView tag
-private fun findImageCaptureInHierarchy(root: android.view.ViewGroup): ImageCapture? {
-    for (i in 0 until root.childCount) {
-        val child = root.getChildAt(i)
-        if (child is PreviewView) {
-            @Suppress("UNCHECKED_CAST")
-            return child.getTag(R.id.tag_image_capture) as? ImageCapture
-        }
-        if (child is android.view.ViewGroup) {
-            val found = findImageCaptureInHierarchy(child)
-            if (found != null) return found
-        }
-    }
-    return null
-}
-
-/* ---------------------------------------------------------
-   Helpers
---------------------------------------------------------- */
 
 fun saveBitmapToCache(context: Context, bitmap: Bitmap): Uri {
     val cacheDir = context.cacheDir

@@ -21,7 +21,7 @@ fun levenshteinDistance(text1: String, text2: String): Int {
     val levenshteinDistance = LevenshteinDistance()
     return levenshteinDistance.apply(text1, text2)
 }
-
+//Similarity functions
 fun similarity(text1: String, text2: String): Map<String, Any> {
     val cosineSim = cosineSimilarity(text1, text2)
     val jaccardSim = jaccardSimilarity(text1, text2)

@@ -29,7 +29,6 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.viewinterop.AndroidView
@@ -53,7 +52,7 @@ fun CameraCapture(
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     val previewView = remember { PreviewView(context) }
-    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    Executors.newSingleThreadExecutor()
     var zoomState by remember { mutableStateOf(0f) }
     var camera: Camera? by remember { mutableStateOf(null) }
     var flashEnabled by remember { mutableStateOf(false) }

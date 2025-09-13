@@ -5,44 +5,26 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import android.util.Log
 import androidx.compose.material3.Button
 import androidx.compose.ui.platform.LocalContext
-//import kotlin.coroutines.jvm.internal.CompletedContinuation.context
+
 
 class AdminScreen : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            AdminScreenContent(
-                onAddNewEntryClick = {
-                    // Handle "Add New Entry" button click
-                },
-                onListEntriesClick = {
-                    Log.d("Explain", "List Entries button clicked")
-                    val intent = Intent(this, ListEntries::class.java)
-                    startActivity(intent)
-                }
-            )
+            AdminScreenContent()
         }
     }
 }
 
 @Composable
-fun AdminScreenContent(
-    onAddNewEntryClick: () -> Unit,
-    onListEntriesClick: () -> Unit
-) {
+fun AdminScreenContent() {
     val context = LocalContext.current
     Column(
         modifier = Modifier

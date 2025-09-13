@@ -35,21 +35,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import kotlin.coroutines.suspendCoroutine
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
+import kotlin.coroutines.suspendCoroutine
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 
 
-fun FirstScreen(onNavigateToSecondScreen: (String, Int) -> Unit) {
+fun FirstScreen() {
     val context = LocalContext.current
     val cameraPermission = rememberPermissionState(permission = Manifest.permission.CAMERA)
 
@@ -93,7 +92,7 @@ fun FirstScreen(onNavigateToSecondScreen: (String, Int) -> Unit) {
                                         correctedText.replace("\n", " ").replace("\t", " ").trim()
                                     var entryFound = false
                                     for (entry in entries) {
-                                        val isIncluded = suspendCoroutine<Boolean> { continuation ->
+                                        val isIncluded = suspendCoroutine { continuation ->
                                             isTextAIncludedInTextB(
                                                 apiKey = Constants.API_KEY,
                                                 textA = cleanedCorrectedText,
@@ -265,38 +264,6 @@ fun performOCR(bitmap: Bitmap, context: Context, languages: List<String>, callba
 fun cleanText(text: String): String =
     text.replace("\n", " ").replace("\\s+".toRegex(), " ").trim()
 
-fun copyTessDataFiles(context: Context, languages: List<String>) {
-    Log.d("Explain", "copyTessDataFiles | Checking tessdata files")
-    val assetManager = context.assets
-    val tessDataPath = context.filesDir.toString() + "/tesseract/tessdata/"
-    val tessDataDir = File(tessDataPath)
-    if (!tessDataDir.exists()) {
-        tessDataDir.mkdirs()
-        Log.d("Explain", "copyTessDataFiles | Created tessdata dir")
-    }
-    try {
-        languages.forEach { language ->
-            val fileName = "$language.traineddata"
-            val outFile = File(tessDataPath, fileName)
-            if (!outFile.exists()) {
-                Log.d("Explain", "copyTessDataFiles | Copying $fileName from assets")
-                assetManager.open("tessdata/$fileName").use { input ->
-                    FileOutputStream(outFile).use { out ->
-                        val buf = ByteArray(4096)
-                        var r: Int
-                        while (input.read(buf).also { r = it } != -1) out.write(buf, 0, r)
-                    }
-                }
-                Log.d("Explain", "copyTessDataFiles | Copied $fileName")
-            } else {
-                Log.d("Explain", "copyTessDataFiles | $fileName already exists")
-            }
-        }
-    } catch (e: Exception) {
-        Log.e("Explain", "copyTessDataFiles | Error copying tessdata", e)
-    }
-}
-
 fun sendLinkAndTypeToServer(content: String, type: String) {
     when (type.lowercase()) {
         "text" -> sendTextPayload(content)
@@ -309,6 +276,7 @@ fun sendLinkAndTypeToServer(content: String, type: String) {
 fun sendTextPayload(text: String) {
     Log.d("Explain", "Send text payload to server: $text")
     val client = OkHttpClient()
+    //Local web server URL. Update accordingly
     val url = "http://192.168.31.177:8081/payload"
 
     val json = JSONObject().apply {
@@ -317,10 +285,8 @@ fun sendTextPayload(text: String) {
         put("text", text)
     }
 
-    val requestBody = RequestBody.create(
-        "application/json".toMediaTypeOrNull(),
-        json.toString()
-    )
+    val requestBody = json.toString()
+        .toRequestBody("application/json".toMediaTypeOrNull())
 
     val request = Request.Builder()
         .url(url)
@@ -342,6 +308,7 @@ fun sendTextPayload(text: String) {
 fun sendImagePayload(link: String) {
     Log.d("Explain", "Send image payload to server: $link")
     val client = OkHttpClient()
+    //Local web server URL. Update accordingly
     val url = "http://192.168.31.177:8081/payload"
 
     val json = JSONObject().apply {
@@ -350,10 +317,8 @@ fun sendImagePayload(link: String) {
         put("link", link)
     }
 
-    val requestBody = RequestBody.create(
-        "application/json".toMediaTypeOrNull(),
-        json.toString()
-    )
+    val requestBody = json.toString()
+        .toRequestBody("application/json".toMediaTypeOrNull())
 
     val request = Request.Builder()
         .url(url)
@@ -375,6 +340,7 @@ fun sendImagePayload(link: String) {
 fun sendVideoPayload(link: String) {
     Log.d("Explain", "Send video payload to server: $link")
     val client = OkHttpClient()
+    //Local web server URL. Update accordingly
     val url = "http://192.168.31.177:8081/payload"
 
     val json = JSONObject().apply {
@@ -383,10 +349,8 @@ fun sendVideoPayload(link: String) {
         put("link", link)
     }
 
-    val requestBody = RequestBody.create(
-        "application/json".toMediaTypeOrNull(),
-        json.toString()
-    )
+    val requestBody = json.toString()
+        .toRequestBody("application/json".toMediaTypeOrNull())
 
     val request = Request.Builder()
         .url(url)

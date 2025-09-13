@@ -17,5 +17,6 @@ Android application built with Jetpack Compose that captures text via the camera
 - Clone the repository.
 - Open the project in Android Studio.
 - Configure a valid Gemini API key in Constants.kt.
+- Update web server's placeholder address in FirstScreen.kt (3 instances)
 - Build & run on an emulator or device (requires Android SDK 35, camera, and network access).
 

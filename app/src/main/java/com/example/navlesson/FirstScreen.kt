@@ -8,21 +8,20 @@ import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -38,7 +37,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.suspendCoroutine
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -47,13 +45,11 @@ import okhttp3.RequestBody
 import org.json.JSONObject
 import java.io.IOException
 
-/****************  MAIN SCREEN  ****************/
-
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun FirstScreen(onNavigateToSecondScreen: (String, Int) -> Unit) {
-    Log.d("Explain", "FirstScreen | Composable entered")
 
+
+fun FirstScreen(onNavigateToSecondScreen: (String, Int) -> Unit) {
     val context = LocalContext.current
     val cameraPermission = rememberPermissionState(permission = Manifest.permission.CAMERA)
 
@@ -63,119 +59,96 @@ fun FirstScreen(onNavigateToSecondScreen: (String, Int) -> Unit) {
 
     val foundEntry = remember { mutableStateOf<Entry?>(null) }
 
-
-    // Copy tessdata files for ell + eng
-    LaunchedEffect(Unit) {
-        Log.d("Explain", "FirstScreen | Copying tessdata files...")
-        copyTessDataFiles(context, listOf("ell", "eng"))
-        Log.d("Explain", "FirstScreen | Tessdata ready")
-    }
-
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (cameraPermission.status.isGranted) {
-            Log.d("Explain", "FirstScreen | Camera permission granted")
-
-            // Camera preview
-            CameraCapture(
-                captureNow = captureNow,
-                onCaptureConsumed = {
-                    Log.d("Explain", "FirstScreen | Capture consumed, resetting trigger")
-                    captureNow = false
-                },
-                onImageCaptured = { bitmap ->
-                    Log.d("Explain", "FirstScreen | Image captured")
-                    val rotatedBitmap = Bitmap.createBitmap(
-                        bitmap, 0, 0, bitmap.width, bitmap.height,
-                        android.graphics.Matrix().apply { postRotate(90f) },
-                        true
-                    )
-                    capturedBitmap = rotatedBitmap
-                    performOCR(rotatedBitmap, context, listOf("ell", "eng")) { text ->
-                        Log.d("Explain", "FirstScreen | OCR callback received")
-                        correctTextWithGeminiAI(
-                            apiKey = Constants.API_KEY,
-                            text = text
-                        ) { correctedText ->
-                            Log.d("Explain", "FirstScreen | Corrected text received")
-                            extractedText = correctedText
-
-                            // Check if the text exists in the database
-                            val db = AppDatabase.getDatabase(context)
-                            CoroutineScope(Dispatchers.IO).launch {
-                                val entries = db.entryDao().getAllEntries()
-                                val cleanedCorrectedText = correctedText.replace("\n", " ").replace("\t", " ").trim()
-                                Log.d("Explain", "Cleaned TextA: $cleanedCorrectedText")
-
-                                for (entry in entries) {
-                                    val isIncluded = suspendCoroutine<Boolean> { continuation ->
-                                        isTextAIncludedInTextB(
-                                            apiKey = Constants.API_KEY,
-                                            textA = cleanedCorrectedText,
-                                            textB = entry.text
-                                        ) { result ->
-                                            continuation.resumeWith(Result.success(result))
+        item {
+            if (cameraPermission.status.isGranted) {
+                // Camera preview
+                CameraCapture(
+                    captureNow = captureNow,
+                    onCaptureConsumed = { captureNow = false },
+                    onImageCaptured = { bitmap ->
+                        val rotatedBitmap = Bitmap.createBitmap(
+                            bitmap, 0, 0, bitmap.width, bitmap.height,
+                            android.graphics.Matrix().apply { postRotate(90f) },
+                            true
+                        )
+                        capturedBitmap = rotatedBitmap
+                        performOCR(rotatedBitmap, context, listOf("ell", "eng")) { text ->
+                            correctTextWithGeminiAI(
+                                apiKey = Constants.API_KEY,
+                                text = text
+                            ) { correctedText ->
+                                extractedText = correctedText
+                                // Check if the text exists in the database
+                                val db = AppDatabase.getDatabase(context)
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    val entries = db.entryDao().getAllEntries()
+                                    val cleanedCorrectedText =
+                                        correctedText.replace("\n", " ").replace("\t", " ").trim()
+                                    var entryFound = false
+                                    for (entry in entries) {
+                                        val isIncluded = suspendCoroutine<Boolean> { continuation ->
+                                            isTextAIncludedInTextB(
+                                                apiKey = Constants.API_KEY,
+                                                textA = cleanedCorrectedText,
+                                                textB = entry.text
+                                            ) { result ->
+                                                continuation.resumeWith(Result.success(result))
+                                            }
+                                        }
+                                        if (isIncluded) {
+                                            withContext(Dispatchers.Main) {
+                                                foundEntry.value = entry
+                                                sendLinkAndTypeToServer(entry.link, entry.type)
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(context, "Matching Entry Found - Results sent to PC", Toast.LENGTH_SHORT).show()
+                                                }                                            }
+                                            entryFound = true
+                                            break
                                         }
                                     }
-
-                                    if (isIncluded) {
-                                        withContext(Dispatchers.Main) {
-                                            foundEntry.value = entry
-                                        }
-                                        break
+                                    withContext(Dispatchers.Main) {
+                                        if (!entryFound) {
+                                            Log.d("Explain", "No matching entry found in the database")
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "No matching entry found in the database", Toast.LENGTH_SHORT).show()
+                                            }                                        }
                                     }
-                                }
-
-                                withContext(Dispatchers.Main) {
-                                    foundEntry.value?.let {
-                                        Log.d("Explain", "Entry found: Link=${it.link}, Type=${it.type}")
-                                        sendLinkAndTypeToServer(it.link, it.type)
-                                    } ?: Log.d("Explain", "No matching entry found in the database")
                                 }
                             }
                         }
+                    },
+                    onError = { exception ->
+                        Log.e("Explain", "Capture error: ${exception.message}", exception)
                     }
-                },
-                onError = { exception ->
-                    Log.e("Explain", "FirstScreen | Capture error: ${exception.message}", exception)
-                }
-            )
-
-            // Capture button
-            Button(onClick = {
-                Log.d("Explain", "FirstScreen | Capture button pressed")
-                captureNow = true
-            }) {
-                Text("Capture & OCR")
-            }
-
-            // Captured preview
-            capturedBitmap?.let {
-                Log.d("Explain", "FirstScreen | Displaying captured preview")
-                Image(
-                    bitmap = it.asImageBitmap(),
-                    contentDescription = "Captured Image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
                 )
-            }
 
+                // Capture button
+                Button(
+                    onClick = { captureNow = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Capture & OCR")
+                }
 
-        } else {
-            Log.d("Explain", "FirstScreen | Camera permission not granted")
-            Button(onClick = {
-                Log.d("Explain", "FirstScreen | Requesting camera permission")
-                cameraPermission.launchPermissionRequest()
-            }) {
-                Text("Grant Camera Permission")
+            } else {
+                // Permission request
+                Button(
+                    onClick = { cameraPermission.launchPermissionRequest() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Grant Camera Permission")
+                }
             }
         }
+
+
     }
 }
 
@@ -233,6 +206,7 @@ fun CameraCapture(
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     Log.d("Explain", "CameraCapture | Photo saved to ${photo.absolutePath}")
+                    Toast.makeText(context, "Image captured and saved", Toast.LENGTH_SHORT).show()
                     val bmp = BitmapFactory.decodeFile(photo.absolutePath)
                     onImageCaptured(bmp)
                     onCaptureConsumed()
@@ -260,14 +234,18 @@ fun performOCR(bitmap: Bitmap, context: Context, languages: List<String>, callba
 
         try {
             Log.d("Explain", "performOCR | Initializing Tesseract with lang=$lang")
+            mainHandler.post {
+                Toast.makeText(context, "Initializing Tesseract..", Toast.LENGTH_SHORT).show()
+            }
             tess.init(dataPath, lang)
             val argb = bitmap.copy(Bitmap.Config.ARGB_8888, true)
             tess.setImage(argb)
             Log.d("Explain", "performOCR | Image set, extracting text...")
+            mainHandler.post {
+                Toast.makeText(context, "Extracting text. Please wait..", Toast.LENGTH_LONG).show()
+            }
             val rawText = tess.utF8Text ?: ""
-            //Log.d("Explain", "performOCR | Raw OCR result: $rawText")
             val cleaned = cleanText(rawText)
-            //Log.d("Explain", "performOCR | Cleaned OCR result: $cleaned")
             mainHandler.post { callback(cleaned) }
         } catch (e: Exception) {
             Log.e("Explain", "performOCR | OCR error", e)
@@ -276,6 +254,9 @@ fun performOCR(bitmap: Bitmap, context: Context, languages: List<String>, callba
             try {
                 tess.end()
                 Log.d("Explain", "performOCR | Tesseract ended")
+                mainHandler.post {
+                    Toast.makeText(context, "Text exctraction ended", Toast.LENGTH_SHORT).show()
+                }
             } catch (_: Exception) {}
         }
     }.start()
@@ -326,6 +307,7 @@ fun sendLinkAndTypeToServer(content: String, type: String) {
 }
 
 fun sendTextPayload(text: String) {
+    Log.d("Explain", "Send text payload to server: $text")
     val client = OkHttpClient()
     val url = "http://192.168.31.177:8081/payload"
 
@@ -358,6 +340,7 @@ fun sendTextPayload(text: String) {
 }
 
 fun sendImagePayload(link: String) {
+    Log.d("Explain", "Send image payload to server: $link")
     val client = OkHttpClient()
     val url = "http://192.168.31.177:8081/payload"
 
@@ -390,6 +373,7 @@ fun sendImagePayload(link: String) {
 }
 
 fun sendVideoPayload(link: String) {
+    Log.d("Explain", "Send video payload to server: $link")
     val client = OkHttpClient()
     val url = "http://192.168.31.177:8081/payload"
 

@@ -52,6 +52,7 @@ android {
 
 dependencies {
 
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     val nav_version = "2.7.4"
     implementation("androidx.navigation:navigation-compose:$nav_version")
 

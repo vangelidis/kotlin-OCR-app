@@ -82,7 +82,8 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
     val requestBody = gson.toJson(
         mapOf(
             "contents" to listOf(
-                mapOf("parts" to listOf(mapOf("text" to "Check if the following text: '$textA' is included in or is similar to this text: '$textB'. Respond with 'true' or 'false' only. Take into account that the texts were extracted with OCR and may contain random characters. Absolutely no explanation or additional texts.")))
+                mapOf("parts" to listOf(mapOf("text" to "Check if the following text: '$textA' is included in or is the same with this text: '$textB'. Respond with 'true' or 'false' only. Take into account that the texts were extracted with OCR and may contain random characters. Absolutely no explanation or additional texts.")))
+                //mapOf("parts" to listOf(mapOf("text" to "Respond only with 'true' or 'false'; assume OCR noise (~10%); return true if any: (1) $textA is approximately contained in $textB (~90%), (2) $textB is approximately contained in $textA (~90%), (3) $textA and $textB are approximately the same (~90%); otherwise false.")))
             )
         )
     ).toRequestBody("application/json".toMediaTypeOrNull())
@@ -90,10 +91,17 @@ fun isTextAIncludedInTextB(apiKey: String, textA: String, textB: String, callbac
     logLongText("Explain", "TextA", textA)
     logLongText("Explain", "TextB", textB)
 
+    //val request = Request.Builder()
+     //   .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+     //   .post(requestBody)
+     //   .addHeader("Content-Type", "application/json")
+     //   .build()
+
     val request = Request.Builder()
-        .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
-        .post(requestBody)
+        .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")
+        .addHeader("x-goog-api-key", apiKey)
         .addHeader("Content-Type", "application/json")
+        .post(requestBody)
         .build()
 
     client.newCall(request).enqueue(object : Callback {

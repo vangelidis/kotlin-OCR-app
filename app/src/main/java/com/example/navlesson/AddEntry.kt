@@ -4,59 +4,59 @@ import android.app.Activity.RESULT_OK
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.view.Surface
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
-import com.example.navlesson.composable.CameraCapture
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import com.yalantis.ucrop.UCrop
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
-import android.Manifest
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import java.io.FileOutputStream
 import java.io.IOException
+import androidx.core.content.ContextCompat
+import android.annotation.SuppressLint
+import android.view.ViewGroup
+import androidx.exifinterface.media.ExifInterface
+import com.example.navlesson.composable.adjustContrast
+import com.example.navlesson.composable.convertToGrayscale
+import com.example.navlesson.composable.removeNoise
+
+/* ---------------------------------------------------------
+   Activity
+--------------------------------------------------------- */
 
 class AddEntry : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,18 +67,17 @@ class AddEntry : ComponentActivity() {
         }
     }
 }
-
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun AddEntryScreen(context: Context) {
-    Log.d("Explain", "AddEntry - AddEntryScreen")
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var extractedText by remember { mutableStateOf("") }
     var showCamera by remember { mutableStateOf(false) }
     val languages = listOf("ell", "eng")
 
+    // uCrop launcher (crop after capture)
     val cropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = { result ->
@@ -86,31 +85,24 @@ fun AddEntryScreen(context: Context) {
                 result.data?.let { intent ->
                     val resultUri: Uri? = UCrop.getOutput(intent)
                     resultUri?.let { uri ->
-                        val croppedBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            val source = ImageDecoder.createSource(context.contentResolver, uri)
-                            ImageDecoder.decodeBitmap(source)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                        }
+                        val croppedBitmap =
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                val source = ImageDecoder.createSource(context.contentResolver, uri)
+                                ImageDecoder.decodeBitmap(source)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                            }
                         bitmap = croppedBitmap
-                        Log.d("Explain", "AddEntry - Inside cropLauncher")
                         coroutineScope.launch {
-                            extractedText = coroutineScope.launch {
-                                bitmap?.let { capturedBitmap ->
-                                    performOCR(capturedBitmap, context, languages) { correctedText ->
-                                        Log.d("Explain", "AddEntry - correctedText: $correctedText")
-                                        correctTextWithGeminiAI(
-                                            apiKey = Constants.API_KEY,
-                                            text = correctedText
-                                        ) { correctedText ->
-                                            Log.d("Explain", "AddEntry - correctTextWithGeminiAI: $correctedText")
-                                            // Update the extracted text with the corrected text
-                                            extractedText = correctedText
-                                        }
-                                    }
+                            performOCR(croppedBitmap, context, languages) { rawText ->
+                                correctTextWithGeminiAI(
+                                    apiKey = Constants.API_KEY,
+                                    text = rawText
+                                ) { finalText ->
+                                    extractedText = finalText
                                 }
-                            }.toString()
+                            }
                         }
                     }
                 }
@@ -122,72 +114,87 @@ fun AddEntryScreen(context: Context) {
             }
         }
     )
-    Column(
+
+    var link by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf("text") }
+    var editableText by remember { mutableStateOf("") }
+
+    LaunchedEffect(extractedText) {
+        editableText = extractedText
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        bitmap?.let {
-            Image(
-                bitmap = it.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(200.dp)
-                    .clickable { /* Optionally re-crop */ },
-                contentScale = ContentScale.Crop
-            )
+        // Preview of the cropped image (if any)
+        item {
+            bitmap?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clickable { /* Optionally re-crop */ },
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
 
-        Button(onClick = {
-            showCamera = true
-        }) {
-            Text("Take Photo")
+        // Open camera
+        item {
+            Button(
+                onClick = { showCamera = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Take Photo")
+            }
         }
 
+        // Camera block (only visible when taking a photo)
         if (showCamera) {
-            CameraCapture(
-                onImageCaptured = { capturedBitmap ->
-                    showCamera = false
-                    val sourceUri: Uri = saveBitmapToCache(context, capturedBitmap)
-                    val destFile = File(context.cacheDir, "cropped_${System.currentTimeMillis()}.jpg")
-                    val destUri: Uri = Uri.fromFile(destFile)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                ) {
+                    CameraCapture(
+                        modifier = Modifier.fillMaxSize(),
+                        onImageCaptured = { capturedBitmap ->
+                            showCamera = false
+                            // Preprocess the captured image
+                            val preprocessedBitmap = preprocessImage(capturedBitmap)
 
-                    val uCropIntent: Intent = UCrop.of(sourceUri, destUri)
-                        .useSourceImageAspectRatio()
-                        .withMaxResultSize(1000, 1000)
-                        .withOptions(UCrop.Options().apply {
-                            setFreeStyleCropEnabled(true)
-                        })
-                        .getIntent(context)
-                    cropLauncher.launch(uCropIntent)
-                },
-                onError = { exc ->
-                    showCamera = false
-                    Toast.makeText(context, "Image capture failed: ${exc.message}", Toast.LENGTH_SHORT).show()
+                            // Save to cache and launch uCrop
+                            val sourceUri: Uri = saveBitmapToCache(context, preprocessedBitmap)
+                            val destFile = File(context.cacheDir, "cropped_${System.currentTimeMillis()}.jpg")
+                            val destUri: Uri = Uri.fromFile(destFile)
+
+                            val uCropIntent: Intent = UCrop.of(sourceUri, destUri)
+                                .useSourceImageAspectRatio()
+                                .withMaxResultSize(1000, 1000)
+                                .withOptions(UCrop.Options().apply {
+                                    setFreeStyleCropEnabled(true)
+                                })
+                                .getIntent(context)
+                            cropLauncher.launch(uCropIntent)
+                        },
+                        onError = { exc ->
+                            showCamera = false
+                            Toast.makeText(context, "Image capture failed: ${exc.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
-            )
+            }
         }
 
-        val scrollState = rememberScrollState()
-
-        var link by remember { mutableStateOf("") }
-        var expanded by remember { mutableStateOf(false) }
-        var selectedType by remember { mutableStateOf("text") }
-        var editableText by remember { mutableStateOf("") }
-
-        LaunchedEffect(extractedText) {
-            editableText = extractedText
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Editable Text Area
+        // Text fields and actions
+        item {
             TextField(
                 value = editableText,
                 onValueChange = { newText -> editableText = newText },
@@ -195,8 +202,9 @@ fun AddEntryScreen(context: Context) {
                 label = { Text("Retrieved Text") },
                 placeholder = { Text("No text extracted yet.") }
             )
+        }
 
-            // Paste Link Field
+        item {
             TextField(
                 value = link,
                 onValueChange = { newLink -> link = newLink },
@@ -204,11 +212,10 @@ fun AddEntryScreen(context: Context) {
                 label = { Text("Paste Link") },
                 placeholder = { Text("Enter or paste a link here") }
             )
+        }
 
-            // Dropdown Menu
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
+        item {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = { expanded = true }) {
                     Text(selectedType)
                 }
@@ -227,11 +234,18 @@ fun AddEntryScreen(context: Context) {
                     }
                 }
             }
+        }
+
+        item {
             Button(
                 onClick = {
                     coroutineScope.launch {
-                        addEntryToDatabase(context, editableText, link, selectedType)
-                        Toast.makeText(context, "Entry saved successfully!", Toast.LENGTH_SHORT).show()
+                        try {
+                            addEntryToDatabase(context, editableText, link, selectedType)
+                            Toast.makeText(context, "Entry saved successfully!", Toast.LENGTH_SHORT).show()
+                        } catch (t: Throwable) {
+                            Toast.makeText(context, "Save failed: ${t.message}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -240,8 +254,199 @@ fun AddEntryScreen(context: Context) {
             }
         }
     }
-
 }
+
+/* ---------------------------------------------------------
+   CameraCapture composable
+   - Uses ImplementationMode.COMPATIBLE (TextureView) to avoid overlay issues.
+   - Binds after view is attached (post) and sets safe rotation.
+   - Rotates the returned Bitmap so callers don’t need previewView.
+--------------------------------------------------------- */
+
+@SuppressLint("RestrictedApi")
+@Composable
+fun CameraCapture(
+    onImageCaptured: (Bitmap) -> Unit,
+    onError: (ImageCaptureException) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Compose-held references (no view lookups/casts)
+    val imageCaptureRef = remember { mutableStateOf<ImageCapture?>(null) }
+    val rotationDegreesRef = remember { mutableStateOf(0) }
+
+    // The camera preview view
+    val previewView = remember {
+        PreviewView(context).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE // TextureView
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+    }
+
+    // Place the preview
+    AndroidView(
+        modifier = modifier,
+        factory = { previewView }
+    )
+
+    // Bind camera after view is attached to avoid rotation = -1
+    DisposableEffect(lifecycleOwner) {
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        previewView.post {
+            val providerFuture = ProcessCameraProvider.getInstance(context)
+            providerFuture.addListener({
+                try {
+                    val cameraProvider = providerFuture.get()
+
+                    // Safe rotation
+                    val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
+                    rotationDegreesRef.value = when (rotation) {
+                        Surface.ROTATION_0 -> 0
+                        Surface.ROTATION_90 -> 90
+                        Surface.ROTATION_180 -> 180
+                        Surface.ROTATION_270 -> 270
+                        else -> 0
+                    }
+
+                    val preview = Preview.Builder()
+                        .setTargetRotation(rotation)
+                        .build()
+                        .also { it.setSurfaceProvider(previewView.surfaceProvider) }
+
+                    val imageCapture = ImageCapture.Builder()
+                        .setTargetRotation(rotation)
+                        .build()
+                        .also { imageCaptureRef.value = it }
+
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        imageCapture
+                    )
+
+                    // Keep rotations in sync if layout/display changes
+                    previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                        val rot = previewView.display?.rotation ?: Surface.ROTATION_0
+                        rotationDegreesRef.value = when (rot) {
+                            Surface.ROTATION_0 -> 0
+                            Surface.ROTATION_90 -> 90
+                            Surface.ROTATION_180 -> 180
+                            Surface.ROTATION_270 -> 270
+                            else -> 0
+                        }
+                        try {
+                            preview.targetRotation = rot
+                            imageCapture.targetRotation = rot
+                        } catch (_: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    onError(
+                        ImageCaptureException(
+                            ImageCapture.ERROR_UNKNOWN,
+                            e.message ?: "Camera init error",
+                            e
+                        )
+                    )
+                }
+            }, mainExecutor)
+        }
+
+        onDispose {
+            try {
+                val provider = ProcessCameraProvider.getInstance(context).get()
+                provider.unbindAll()
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Capture button overlay
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 16.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Button(onClick = {
+            val imageCapture = imageCaptureRef.value
+            if (imageCapture == null) {
+                onError(
+                    ImageCaptureException(
+                        ImageCapture.ERROR_INVALID_CAMERA,
+                        "Camera not ready",
+                        null
+                    )
+                )
+                return@Button
+            }
+
+            try {
+                val photo = File.createTempFile("frame_", ".jpg", context.cacheDir)
+                val opts = ImageCapture.OutputFileOptions.Builder(photo).build()
+                val executor = ContextCompat.getMainExecutor(context)
+
+                imageCapture.takePicture(
+                    opts, executor,
+                    object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                            try {
+                                val path = photo.absolutePath
+                                val exifDeg = exifRotationDegrees(path)
+                                val bmp = BitmapFactory.decodeFile(path)
+                                val out = if (exifDeg != 0) rotateBitmapIfNeeded(bmp, exifDeg) else bmp
+                                onImageCaptured(out)
+                            } catch (e: Exception) {
+                                onError(
+                                    ImageCaptureException(
+                                        ImageCapture.ERROR_FILE_IO,
+                                        e.message ?: "Decode error",
+                                        e
+                                    )
+                                )
+                            }
+                        }
+                        override fun onError(exception: ImageCaptureException) {
+                            onError(exception)
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                onError(
+                    ImageCaptureException(
+                        ImageCapture.ERROR_UNKNOWN,
+                        e.message ?: "Capture error",
+                        e
+                    )
+                )
+            }
+        }) {
+            Text("Capture")
+        }
+    }
+}
+
+// Helper to find ImageCapture stored in PreviewView tag
+private fun findImageCaptureInHierarchy(root: android.view.ViewGroup): ImageCapture? {
+    for (i in 0 until root.childCount) {
+        val child = root.getChildAt(i)
+        if (child is PreviewView) {
+            @Suppress("UNCHECKED_CAST")
+            return child.getTag(R.id.tag_image_capture) as? ImageCapture
+        }
+        if (child is android.view.ViewGroup) {
+            val found = findImageCaptureInHierarchy(child)
+            if (found != null) return found
+        }
+    }
+    return null
+}
+
+/* ---------------------------------------------------------
+   Helpers
+--------------------------------------------------------- */
 
 fun saveBitmapToCache(context: Context, bitmap: Bitmap): Uri {
     val cacheDir = context.cacheDir
@@ -257,4 +462,31 @@ fun saveBitmapToCache(context: Context, bitmap: Bitmap): Uri {
     return Uri.fromFile(file)
 }
 
+fun rotateBitmapIfNeeded(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
+    if (rotationDegrees == 0) return bitmap
+    val matrix = android.graphics.Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+}
 
+private fun exifRotationDegrees(path: String): Int = try {
+    val exif = ExifInterface(path)
+    when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+        ExifInterface.ORIENTATION_ROTATE_90  -> 90
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+        else -> 0
+    }
+} catch (_: Exception) { 0 }
+
+fun preprocessImage(bitmap: Bitmap): Bitmap {
+    Log.d("Explain", "Starting image preprocessing")
+    val grayscaleBitmap = convertToGrayscale(bitmap)
+    Log.d("Explain", "Converted to grayscale")
+    val noiseRemovedBitmap = removeNoise(grayscaleBitmap)
+    Log.d("Explain", "Noise removed")
+    //val binarizedBitmap = binarizeImage(noiseRemovedBitmap)
+    val contrastAdjustedBitmap = adjustContrast(noiseRemovedBitmap, 1.5f)
+    Log.d("Explain", "Contrast adjusted")
+    Log.d("Explain", "Image preprocessing completed")
+    return contrastAdjustedBitmap
+}

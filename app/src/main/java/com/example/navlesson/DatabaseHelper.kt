@@ -23,6 +23,9 @@ interface EntryDao {
 
     @Insert
     suspend fun insertEntry(entry: Entry)
+
+    @Query("DELETE FROM entries")
+    suspend fun deleteAllEntries()
 }
 
 @Database(entities = [Entry::class], version = 2)
@@ -64,4 +67,10 @@ suspend fun getAllEntriesFromDatabase(context: Context): List<Entry> {
     }
 }
 
+suspend fun deleteAllEntriesFromDatabase(context: Context) {
+    val db = AppDatabase.getDatabase(context)
+    withContext(Dispatchers.IO) {
+        db.entryDao().deleteAllEntries()
+    }
+}
 

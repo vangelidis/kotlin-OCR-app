@@ -277,7 +277,7 @@ fun sendTextPayload(text: String) {
     Log.d("Explain", "Send text payload to server: $text")
     val client = OkHttpClient()
     //Local web server URL. Update accordingly
-    val url = "http://192.168.31.177:8081/payload"
+    val url = "http://XXX.XXX.XXX.XXX:8081/payload"
 
     val json = JSONObject().apply {
         put("status", "ok")
@@ -309,7 +309,7 @@ fun sendImagePayload(link: String) {
     Log.d("Explain", "Send image payload to server: $link")
     val client = OkHttpClient()
     //Local web server URL. Update accordingly
-    val url = "http://192.168.31.177:8081/payload"
+    val url = "http://XXX.XXX.XXX.XXX:8081/payload"
 
     val json = JSONObject().apply {
         put("status", "ok")
@@ -341,7 +341,7 @@ fun sendVideoPayload(link: String) {
     Log.d("Explain", "Send video payload to server: $link")
     val client = OkHttpClient()
     //Local web server URL. Update accordingly
-    val url = "http://192.168.31.177:8081/payload"
+    val url = "http://XXX.XXX.XXX.XXX:8081/payload"
 
     val json = JSONObject().apply {
         put("status", "ok")
